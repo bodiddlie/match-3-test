@@ -2,17 +2,29 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Tile : MonoBehaviour
-{
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
+public class Tile : MonoBehaviour {
+  public int xIndex;
+  public int yIndex;
 
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
+  // Start is called before the first frame update
+  void Start() {
+
+  }
+
+  public void Init(int x, int y) {
+    xIndex = x;
+    yIndex = y;
+  }
+
+  void OnMouseDown() {
+    Board.instance.ClickTile(this);
+  }
+
+  void OnMouseEnter() {
+    Board.instance.DragToTile(this);
+  }
+
+  void OnMouseUp() {
+    Board.instance.ReleaseTile();
+  }
 }
