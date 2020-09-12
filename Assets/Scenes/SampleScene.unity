@@ -155,6 +155,7 @@ MonoBehaviour:
   width: 7
   height: 9
   borderSize: 2
+  swapTime: 0.2
   tilePrefab: {fileID: 4156052999869183964, guid: 657798c3ed8c54177a9efc4ac3b65f34, type: 3}
   gamePiecePrefabs:
   - {fileID: 8122681125425422215, guid: e0f05f673052b4fe2891b4307067726f, type: 3}

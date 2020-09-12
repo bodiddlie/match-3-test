@@ -3,10 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class GamePiece : MonoBehaviour {
-  [SerializeField]
-  private int xIndex;
-  [SerializeField]
-  private int yIndex;
+  public int xIndex;
+  public int yIndex;
 
   private bool isMoving;
 
@@ -17,6 +15,17 @@ public class GamePiece : MonoBehaviour {
     SmoothStep,
     SmootherStep
   }
+
+  public enum MatchValue {
+    Yellow,
+    Blue,
+    Green,
+    Orange,
+    Red,
+    Wild
+  }
+
+  public MatchValue matchValue;
 
   public MoveType moveType = MoveType.SmootherStep;
 

@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class Board : MonoBehaviour {
@@ -8,6 +9,7 @@ public class Board : MonoBehaviour {
   public int width;
   public int height;
   public int borderSize;
+  public float swapTime;
 
   public GameObject tilePrefab;
   public GameObject[] gamePiecePrefabs;
@@ -26,13 +28,13 @@ public class Board : MonoBehaviour {
     SetupTiles();
     SetupCamera();
     FillRandom();
+    //HighlightMatches();
   }
 
   void SetupTiles() {
     for (int i = 0; i < width; i++) {
       for (int j = 0; j < height; j++) {
         var position = new Vector3(i, j, 0);
-        Debug.Log(position);
         var tile = Instantiate(tilePrefab, position, Quaternion.identity);
         tile.name = $"Tile ({i},{j})";
         tiles[i, j] = tile.GetComponent<Tile>();
@@ -70,7 +72,9 @@ public class Board : MonoBehaviour {
     gamePiece.transform.position = new Vector3(x, y, 0);
     gamePiece.transform.rotation = Quaternion.identity;
     gamePiece.SetCoord(x, y);
-    gamePieces[x, y] = gamePiece;
+    if (IsWithinBounds(x, y)) {
+      gamePieces[x, y] = gamePiece;
+    }
   }
 
   void FillRandom() {
@@ -89,7 +93,6 @@ public class Board : MonoBehaviour {
   public void ClickTile(Tile tile) {
     if (clickedTile == null) {
       clickedTile = tile;
-      Debug.Log($"Clicked tile: {tile.name}");
     }
   }
 
@@ -109,16 +112,130 @@ public class Board : MonoBehaviour {
   }
 
   void SwitchTiles(Tile clicked, Tile target) {
+    StartCoroutine(SwitchTileRoutine(clicked, target));
+  }
+
+  IEnumerator SwitchTileRoutine(Tile clicked, Tile target) {
     var clickedPiece = gamePieces[clicked.xIndex, clicked.yIndex];
     var targetPiece = gamePieces[target.xIndex, target.yIndex];
 
-    clickedPiece.Move(targetTile.xIndex, targetTile.yIndex, 0.5f);
-    targetPiece.Move(clickedTile.xIndex, clickedTile.yIndex, 0.5f);
+    clickedPiece.Move(target.xIndex, target.yIndex, swapTime);
+    targetPiece.Move(clicked.xIndex, clicked.yIndex, swapTime);
+
+    yield return new WaitForSeconds(swapTime);
+
+    var clickedMatches = FindMatchesAt(clicked.xIndex, clicked.yIndex, 3);
+    var targetMatches = FindMatchesAt(target.xIndex, target.yIndex, 3);
+
+    if (clickedMatches.Count + targetMatches.Count == 0) {
+      clickedPiece.Move(clicked.xIndex, clicked.yIndex, swapTime);
+      targetPiece.Move(target.xIndex, target.yIndex, swapTime);
+    }
+
+    HighlightMatchesAt(clicked.xIndex, clicked.yIndex);
+    HighlightMatchesAt(target.xIndex, target.yIndex);
   }
 
   bool IsTileAdjacent(Tile start, Tile end) {
     if (Mathf.Abs(start.xIndex - end.xIndex) == 1 && start.yIndex == end.yIndex) return true;
     if (Mathf.Abs(start.yIndex - end.yIndex) == 1 && start.xIndex == end.xIndex) return true;
     return false;
+  }
+
+  bool IsWithinBounds(int x, int y) {
+    return (x >= 0 && x < width && y >= 0 && y < height);
+  }
+
+  List<GamePiece> FindMatches(int startX, int startY, Vector2 searchDirection, int minLength = 3) {
+    var matches = new List<GamePiece>();
+    GamePiece startPiece = null;
+
+    if (IsWithinBounds(startX, startY)) {
+      startPiece = gamePieces[startX, startY];
+    }
+
+    if (startPiece != null) {
+      matches.Add(startPiece);
+    } else {
+      return null;
+    }
+
+    int nextX;
+    int nextY;
+    int maxValue = Mathf.Max(width, height);
+
+    for (int i = 1; i < maxValue - 1; i++) {
+      nextX = startX + (int)Mathf.Clamp(searchDirection.x, -1, 1) * i;
+      nextY = startY + (int)Mathf.Clamp(searchDirection.y, -1, 1) * i;
+
+      if (!IsWithinBounds(nextX, nextY)) break;
+
+      var nextPiece = gamePieces[nextX, nextY];
+
+      if (nextPiece.matchValue == startPiece.matchValue && !matches.Contains(nextPiece)) {
+        matches.Add(nextPiece);
+      } else {
+        break;
+      }
+    }
+
+    if (matches.Count >= minLength) {
+      return matches;
+    }
+
+    return new List<GamePiece>();
+  }
+
+  List<GamePiece> FindVerticalMatches(int startX, int startY, int minLength = 3) {
+    var upwardMatches = FindMatches(startX, startY, Vector2.up, 2);
+    var downwardMatches = FindMatches(startX, startY, Vector2.down, 2);
+
+    var combined = upwardMatches.Union(downwardMatches).ToList();
+
+    return combined.Count >= minLength ? combined : new List<GamePiece>();
+  }
+
+  List<GamePiece> FindHorizontalMatches(int startX, int startY, int minLength = 3) {
+    var rightMatches = FindMatches(startX, startY, Vector2.right, 2);
+    var leftMatches = FindMatches(startX, startY, Vector2.left, 2);
+
+    var combined = rightMatches.Union(leftMatches).ToList();
+
+    return combined.Count >= minLength ? combined : new List<GamePiece>();
+  }
+
+  void HighlightMatchesAt(int x, int y) {
+    HightlightTileOff(x, y);
+
+    var combined = FindMatchesAt(x, y);
+    if (combined.Count > 0) {
+      foreach (var piece in combined) {
+        HighlightTileOn(piece.xIndex, piece.yIndex, piece.GetComponent<SpriteRenderer>().color);
+      }
+    }
+  }
+
+  void HighlightMatches() {
+    for (int i = 0; i < width; i++) {
+      for (int j = 0; j < height; j++) {
+        HighlightMatchesAt(i, j);
+      }
+    }
+  }
+
+  List<GamePiece> FindMatchesAt(int x, int y, int minLength = 3) {
+    var horizontalMatches = FindHorizontalMatches(x, y);
+    var verticalMatches = FindVerticalMatches(x, y);
+    return horizontalMatches.Union(verticalMatches).ToList();
+  }
+
+  void HightlightTileOff(int x, int y) {
+    var spriteRenderer = tiles[x, y].GetComponent<SpriteRenderer>();
+    spriteRenderer.color = new Color(spriteRenderer.color.r, spriteRenderer.color.g, spriteRenderer.color.b, 0.0f);
+  }
+
+  void HighlightTileOn(int x, int y, Color color) {
+    var spriteRenderer = tiles[x, y].GetComponent<SpriteRenderer>();
+    spriteRenderer.color = color;
   }
 }

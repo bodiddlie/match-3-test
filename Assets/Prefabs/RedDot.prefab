@@ -97,4 +97,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   xIndex: 0
   yIndex: 0
+  matchValue: 4
   moveType: 4
