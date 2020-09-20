@@ -11,7 +11,8 @@ public class Board : MonoBehaviour {
   public int borderSize;
   public float swapTime;
 
-  public GameObject tilePrefab;
+  public GameObject tileNormalPrefab;
+  public GameObject tileObstaclePrefab;
   public GameObject[] gamePiecePrefabs;
 
   private Tile[,] tiles;
@@ -21,6 +22,16 @@ public class Board : MonoBehaviour {
   private Tile targetTile;
 
   private bool inputEnabled = true;
+
+  public StartingTile[] startingTiles;
+
+  [System.Serializable]
+  public class StartingTile {
+    public GameObject tilePrefab;
+    public int x;
+    public int y;
+    public int z;
+  }
 
   // Start is called before the first frame update
   void Start() {
@@ -32,15 +43,29 @@ public class Board : MonoBehaviour {
     FillBoard(10, 0.5f);
   }
 
+  void MakeTile(GameObject prefab, int x, int y, int z = 0) {
+    if (prefab == null) return;
+
+    var position = new Vector3(x, y, z);
+    var tile = Instantiate(prefab, position, Quaternion.identity);
+    tile.name = $"Tile ({x},{y})";
+    tiles[x, y] = tile.GetComponent<Tile>();
+    tile.transform.parent = transform;
+    tiles[x, y].Init(x, y);
+  }
+
   void SetupTiles() {
+    foreach (var tile in startingTiles) {
+      if (tile != null) {
+        MakeTile(tile.tilePrefab, tile.x, tile.y, tile.z);
+      }
+    }
+
     for (int i = 0; i < width; i++) {
       for (int j = 0; j < height; j++) {
-        var position = new Vector3(i, j, 0);
-        var tile = Instantiate(tilePrefab, position, Quaternion.identity);
-        tile.name = $"Tile ({i},{j})";
-        tiles[i, j] = tile.GetComponent<Tile>();
-        tile.transform.parent = transform;
-        tiles[i, j].Init(i, j);
+        if (tiles[i, j] == null) {
+          MakeTile(tileNormalPrefab, i, j);
+        }
       }
     }
   }
@@ -81,7 +106,7 @@ public class Board : MonoBehaviour {
   void FillBoard(int falseYOffset = 0, float moveTime = 0.1f) {
     for (int i = 0; i < width; i++) {
       for (int j = 0; j < height; j++) {
-        if (gamePieces[i, j] == null) {
+        if (gamePieces[i, j] == null && tiles[i, j].tileType != TileType.Obstacle) {
           var piece = FillRandomAt(i, j, falseYOffset, moveTime);
           while (HasMatchOnFill(i, j)) {
             ClearPieceAt(i, j);
@@ -128,7 +153,7 @@ public class Board : MonoBehaviour {
   }
 
   public void ReleaseTile() {
-    if (clickedTile != null && targetTile != null) {
+    if (clickedTile != null && targetTile != null && clickedTile.tileType != TileType.Obstacle && targetTile.tileType != TileType.Obstacle) {
       SwitchTiles(clickedTile, targetTile);
     }
 
@@ -185,7 +210,7 @@ public class Board : MonoBehaviour {
     if (startPiece != null) {
       matches.Add(startPiece);
     } else {
-      return null;
+      return new List<GamePiece>();
     }
 
     int nextX;
@@ -230,6 +255,8 @@ public class Board : MonoBehaviour {
   List<GamePiece> FindHorizontalMatches(int startX, int startY, int minLength = 3) {
     var rightMatches = FindMatches(startX, startY, Vector2.right, 2);
     var leftMatches = FindMatches(startX, startY, Vector2.left, 2);
+    if (rightMatches == null) rightMatches = new List<GamePiece>();
+    if (leftMatches == null) leftMatches = new List<GamePiece>();
 
     var combined = rightMatches.Union(leftMatches).ToList();
 
@@ -333,7 +360,7 @@ public class Board : MonoBehaviour {
     var movingPieces = new List<GamePiece>();
 
     for (int i = 0; i < height - 1; i++) {
-      if (gamePieces[column, i] == null) {
+      if (gamePieces[column, i] == null && tiles[column, i].tileType != TileType.Obstacle) {
         for (int j = i + 1; j < height; j++) {
           if (gamePieces[column, j] != null) {
             gamePieces[column, j].Move(column, i, collapseTime * (j - i));
@@ -405,15 +432,15 @@ public class Board : MonoBehaviour {
 
     HighlightPieces(pieces);
 
-    yield return new WaitForSeconds(0.25f);
+    yield return new WaitForSeconds(0.2f);
 
     bool isFinished = false;
 
     while (!isFinished) {
       ClearPieces(pieces);
-      yield return new WaitForSeconds(0.5f);
-      movingPieces = CollapseColumn(pieces);
       yield return new WaitForSeconds(0.2f);
+      movingPieces = CollapseColumn(pieces);
+      yield return new WaitForSeconds(0.1f);
       matches = FindMatchesAt(movingPieces);
       if (matches.Count == 0) {
         isFinished = true;
